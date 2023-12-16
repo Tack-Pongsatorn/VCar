@@ -1,17 +1,13 @@
 <template>
-  <v-parallax
-    class="home"
-    src="https://www.ibsofficial.com/wp-content/uploads/2021/11/%E0%B9%82%E0%B8%9B%E0%B8%A3%E0%B8%A2%E0%B8%94%E0%B8%AD%E0%B8%81%E0%B9%84%E0%B8%A1%E0%B9%89%E0%B8%95%E0%B9%89%E0%B8%AD%E0%B8%99%E0%B8%A3%E0%B8%B1%E0%B8%9A%E0%B8%98%E0%B8%A3%E0%B8%A3%E0%B8%A1%E0%B8%A2%E0%B8%B2%E0%B8%95%E0%B8%A3%E0%B8%B2%E0%B8%AD%E0%B8%AD%E0%B8%99%E0%B9%84%E0%B8%A5%E0%B8%99%E0%B9%8C.jpg"
-  >
-    <v-container fluid>
+  <v-parallax class="home"
+    src="https://www.dmc.tv/images/rw25_1.2.jpg">
+    <v-container fluid fill-height>
       <v-row justify="center">
         <v-col cols="12">
           <v-row class="justify-center">
             <v-col cols="11" lg="3" md="3" sm="5">
-              <v-card color="white" variant="tonal" class="pa-4">
-                <v-img
-                  :src="'https://www.dmc.tv/dhammayatra/images/logo2.png'"
-                ></v-img>
+              <v-card color="blue" variant="tonal" class="pa-4">
+                <v-img :src="'https://www.dmc.tv/dhammayatra/images/logo2.png'"></v-img>
               </v-card>
             </v-col>
           </v-row>
@@ -28,17 +24,9 @@
                     มาร่วมกิจกรรมธรรมยาตรา)
                   </p>
                   <br />
-                  <v-select
-                    v-model="provinceSelect"
-                    :items="province"
-                    variant="underlined"
-                    item-title="name_th"
-                    item-value="name_th"
-                    clearable
-                    label="จังหวัดต้นทาง"
-                    prepend-inner-icon="mdi-map-search-outline"
-                    :rules="[(v) => !!v || 'กรุณาเลือกจังหวัด']"
-                  ></v-select>
+                  <v-select v-model="provinceSelect" :items="province" variant="underlined" item-title="name_th"
+                    item-value="name_th" clearable label="จังหวัดต้นทาง" prepend-inner-icon="mdi-map-search-outline"
+                    :rules="[(v) => !!v || 'กรุณาเลือกจังหวัด']"></v-select>
 
                   <!-- <v-select
                     v-if="district.length > 0"
@@ -53,26 +41,12 @@
                     variant="underlined"
                   ></v-select> -->
 
-                  <v-select
-                    v-model="select"
-                    :items="items"
-                    :rules="[(v) => !!v || 'กรุณาเลือกประเภทรถโดยสาร']"
-                    label="ประเภทรถโดยสาร"
-                    prepend-inner-icon="mdi-bus-marker"
-                    required
-                    variant="underlined"
-                  ></v-select>
+                  <v-select v-model="select" :items="items" :rules="[(v) => !!v || 'กรุณาเลือกประเภทรถโดยสาร']"
+                    label="ประเภทรถโดยสาร" prepend-inner-icon="mdi-bus" required variant="underlined"></v-select>
 
                   <v-row>
                     <v-col>
-                      <v-btn
-                        block
-                        class="mb-2"
-                        color="blue"
-                        size="large"
-                        variant="tonal"
-                        @click="submit"
-                      >
+                      <v-btn block class="mb-2" color="blue" size="large" variant="tonal" @click="submit">
                         ค้นหา
                       </v-btn>
                     </v-col>
@@ -82,20 +56,13 @@
             </v-col>
           </v-row>
         </v-col>
-        <v-col
-          v-if="showDisplayfuelRate"
-          cols="11"
-          lg="4"
-          md="4"
-          sm="6"
-          :key="keyComponent"
-        >
+        <v-col v-if="showDisplayfuelRate" cols="11" lg="4" md="4" sm="6" :key="keyComponent">
           <v-card>
             <v-card-item class="pa-5">
+              <p class="text-center pa-5 textNumber">{{ rateFuelValue }} บาท</p>
               <p class="text-center textType">
                 จังหวัด {{ provinceSelect }} ประเภท {{ select }}
               </p>
-              <p class="text-center pa-5 textNumber">{{ rateFuelValue }} บาท</p>
               <!-- {{rateValueFromStore.district}}
               <v-list-item
                 v-for="item in rateValueFromStore.district"
@@ -155,7 +122,7 @@ export default {
     },
     async getFuelRate() {
       await db
-        .collection("rateCar2")
+        .collection("rateCar4")
         .doc(this.provinceSelect)
         .get()
         .then((doc) => {
@@ -216,9 +183,11 @@ export default {
   -o-background-size: cover;
   background-size: cover;
 }
+
 .textNumber {
   font-size: 40px;
 }
+
 .textType {
   font-size: 20px;
   color: grey;
