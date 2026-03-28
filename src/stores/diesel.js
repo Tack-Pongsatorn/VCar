@@ -33,7 +33,7 @@ export const useDieselStore = defineStore('diesel', () => {
 
          const data = await response.json()
          console.log('✅ API Response:', data)
-         
+
          if (Array.isArray(data) && data.length > 0) {
             const apiData = data[0]
             const oilListStr = apiData.OilList
