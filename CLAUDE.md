@@ -19,12 +19,15 @@ npm run dev              # dev server + Vite proxy ไป Bangchak API
 npm run build            # build production ลง ./dist
 npm run preview          # preview build (ไม่มี proxy ของ API)
 npm run type-check       # vue-tsc --noEmit (ตรวจแค่ไฟล์ .ts/.vue ที่เป็น TS)
-npm run deploy           # firebase deploy (hosting + functions)
+npm run deploy           # firebase deploy (hosting + functions) — ต้อง npm run build ก่อน!
 npm run deploy-hosting   # เฉพาะ hosting
-npm run deploy-functions # เฉพาะ functions (ต้อง npm install ใน functions/ ก่อน)
+npm run deploy-functions # เฉพาะ functions (ต้อง npm install --prefix functions ก่อน)
 ```
 
 ไม่มี test runner, linter หรือ formatter ใน repo นี้
+
+**ก่อน deploy อ่านหัวข้อ [Deploy](#deploy) ก่อน** — ต้อง login บัญชีที่ถูกต้อง, build ก่อน,
+และ infra ต้องพร้อม 3 ชั้น
 
 ## โครงสร้างระบบ
 
@@ -65,7 +68,7 @@ DieselPriceView onMounted
         └─► GET /api/oil-price
               ├─ dev:  Vite proxy (vite.config.ts) ─► https://oil-price.bangchak.co.th/ApiOilPrice2/th
               └─ prod: hosting rewrite (firebase.json) ─► Cloud Function `getOilPrice`
-                        └─► functions/index.js ─► Bangchak API (fallback 38.94 ถ้า error)
+                        └─► functions/index.js ─► Bangchak API (fallback FALLBACK_PRICE ถ้า error)
 ```
 
 รูปแบบ response ที่ต้องระวัง: API คืน **array** และ `data[0].OilList` เป็น **JSON string** ต้อง `JSON.parse` ซ้อนอีกชั้น
@@ -156,6 +159,9 @@ extraCost = Math.ceil( (distancesAll / kmPerLiter) × (price − BASE_PRICE) )
 
 ## Firebase
 
+> 📌 **อ่านหัวข้อ "Deploy" ด้านล่างก่อน deploy ทุกครั้ง** — มี 3 ชั้นของ infra ที่ต้องพร้อม
+> ไม่ใช่แค่ `firebase deploy`
+
 - **Deploy target**: `.firebaserc` → project `mbus-rate`
 - **Firestore client**: `firebase-config.ts` ชี้ project `flueratecar` (ต่างจาก deploy target)
   API key อยู่ใน repo ตรง ๆ; ใช้ **Firebase SDK v8 namespaced API** (`firebase/app` + `firebase/firestore`,
@@ -168,6 +174,110 @@ extraCost = Math.ceil( (distancesAll / kmPerLiter) × (price − BASE_PRICE) )
 - `firestore.rules` / `firestore.indexes.json` ถูกลบออกจาก repo แล้ว (commit `5f73d63`) — กฎ Firestore
   ไม่ได้ถูกจัดการจากที่นี่
 - `.firebase/hosting.ZGlzdA.cache` เป็น deploy cache ที่ถูก commit ติดมา (ไม่ต้องแก้มือ)
+- Cloud Function `getOilPrice` เป็น **2nd gen** → เบื้องหลังคือ Cloud Run service ชื่อ `getoilprice`
+  (ตัวพิมพ์เล็กทั้งหมด) region `us-central1` URL ตรง: `https://getoilprice-etlqyrnxmq-uc.a.run.app`
+
+## Deploy
+
+### บัญชีที่ใช้ deploy ได้ ⚠️
+
+โปรเจกต์ `mbus-rate` และ `flueratecar` อยู่ใต้ **บัญชี Gmail ส่วนตัวของเจ้าของ repo
+ไม่ใช่บัญชีบริษัท `@mobileconnect.co.th`** (ดูบัญชีที่ login อยู่ด้วย `firebase login:list`)
+
+บัญชีบริษัทจะ deploy ไม่ได้และ error กำกวมมาก:
+
+```
+Error: Failed to get Firebase project mbus-rate. Please make sure the project exists
+       and your account has permission to access it.
+```
+
+เช็คก่อนเสมอ — ถ้า grep ไม่เจอ แปลว่า login ผิดบัญชี:
+
+```bash
+npx firebase login:list
+npx firebase projects:list | grep -i mbus
+```
+
+### ขั้นตอน deploy
+
+```bash
+npm install --prefix functions   # functions/ เป็น package แยก ถ้าไม่ install → CLI discover function ไม่เจอ
+npm run build                    # ต้อง build ก่อน! firebase.json ไม่มี predeploy hook
+npx firebase deploy --non-interactive
+```
+
+**`firebase.json` ไม่มี predeploy hook** — ถ้าไม่ `npm run build` ก่อน จะ deploy `dist/` เก่าหรือไม่มีเลย
+
+### 3 ชั้นของ infra ที่ต้องพร้อม (ทั้งหมดแก้แล้ว 2026-09-09)
+
+ประวัติสำคัญ: **API path ไม่เคยทำงานบน production เลยตั้งแต่ต้น** เพราะ 3 เรื่องนี้ซ้อนกัน
+นี่คือเหตุผลจริงที่โค้ดเดิม hardcode ราคา ไม่ใช่โค้ดค้าง
+
+| ชั้น | อาการ | ทางแก้ |
+|---|---|---|
+| 1. hosting rewrite ไม่ถูก deploy | `/api/oil-price` ตอบ `index.html` (HTTP 200, `text/html`) ตกไป catch-all `**` | `firebase deploy --only hosting` |
+| 2. Cloud Run IAM ว่างเปล่า (ไม่มี binding เลย) | **403 Forbidden** | คำสั่งด้านล่าง |
+| 3. billing ปิด (Spark plan) | **503** + log `The request failed because billing is disabled for this project` | เปิด Blaze plan (ต้องผูกบัตร ทำผ่าน console เท่านั้น) |
+
+```bash
+# ชั้น 2 — เปิดให้เรียกแบบ public (function ตัวนี้เป็น public CORS proxy อยู่แล้วโดยดีไซน์)
+gcloud run services add-iam-policy-binding getoilprice \
+  --project=mbus-rate --region=us-central1 \
+  --member=allUsers --role=roles/run.invoker
+```
+
+**Blaze plan จำเป็น** — Cloud Functions ทำงานไม่ได้เลยบน Spark plan และ `firebase deploy` จะ error
+`Extensions require the Blaze plan` ตั้งแต่ขั้นเตรียม — **เปิด Blaze แล้วเมื่อ 2026-09-09**
+
+**เรียก Bangchak API ตรงจากเบราว์เซอร์ไม่ได้** — ทดสอบแล้วว่า API ไม่ส่ง `Access-Control-Allow-Origin`
+มาเลย (`TypeError: Failed to fetch`) → Cloud Function proxy เป็นทางเดียว ตัดออกไม่ได้
+
+### คำสั่งตรวจสอบหลัง deploy
+
+```bash
+gcloud billing projects describe mbus-rate                    # ต้อง billingEnabled: true
+gcloud run services get-iam-policy getoilprice --project=mbus-rate --region=us-central1
+npx firebase functions:list
+curl -s -w '\n%{http_code} %{content_type}\n' https://mbus-rate.web.app/api/oil-price | tail -2
+gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="getoilprice"' \
+  --project=mbus-rate --limit=10 --freshness=1h
+```
+
+ต้องได้ `HTTP 200` + `application/json` — ถ้าได้ `text/html` แปลว่า rewrite ไม่ทำงาน (ชั้น 1)
+
+### สถานะ production ที่ยืนยันแล้ว (2026-09-09)
+
+URL: **https://mbus-rate.web.app** (และ `mbus-rate.firebaseapp.com`)
+
+| รายการ | ค่า |
+|---|---|
+| `/api/oil-price` | HTTP 200, `application/json` |
+| ราคา `ไฮดีเซล S` | 39.84 (type `number`) |
+| `isFallback` / `error` | `false` / `null` |
+| สินค้าที่ parse ได้ | 8 รายการ |
+| กทม./รถตู้ | 102 บาท (ตรงกับสูตร) |
+
+### ⚠️ ซอร์สของ production เดิมไม่อยู่ใน git
+
+build ที่อยู่บน production ก่อนหน้านี้ (`2026-04-21T01:47:36`) สร้างจากซอร์สที่**ไม่มีใน repo นี้**
+สังเกตจาก: มี attribute `data-build-version` บน `<html>` และ favicon ชี้ `dhammakaya.**net**
+(repo ใช้ `dhammakaya.**or.th**`) และบันเดิลไม่มี `api/oil-price` / `oilrate` / `ไฮดีเซล` เลย
+— เป็นเวอร์ชันที่ตัดการเรียก API ออกหมดและตรึงข้อความ `ราคาน้ำมันดีเซล ณ วันที่ 20 เมษายน 2569`
+
+`origin/main` = `main` = `7eaac8f` → **GitHub ก็ไม่มีซอร์สนั้น** อยู่แค่บนเครื่องคนที่ build
+build นั้นถูก deploy ทับไปแล้ว (เจ้าของ repo อนุมัติ) — Firebase ยังเก็บ release history
+กู้ไฟล์ที่ deploy ได้จาก console แต่**ซอร์สกู้ไม่ได้**
+
+ถ้ามีใครถือซอร์สนั้นอยู่ ควรเอาเข้า git เพื่อไม่ให้ประวัติขาด
+
+### หนี้ที่ต้องจัดการ
+
+- 🔴 **Node 20 ถูก deprecate 2026-04-30 และจะปิด 2026-10-30** หลังจากนั้น deploy functions ไม่ได้
+  ต้องอัป `runtime` ใน `firebase.json` + `engines` ใน `functions/package.json`
+  และ `npm install --save firebase-functions@latest --prefix functions` (v5 → v6+ มี breaking changes)
+- Blaze plan คิดเงินตามการใช้งาน — function cache 5 นาที (`max-age=300`) โหลดน่าจะอยู่ใน free tier
+  แต่ควรตั้ง budget alert
+- `FALLBACK_PRICE` ใน `functions/index.js` ยังต้องอัปเดตมือเป็นระยะ (ปัจจุบัน 39.84)
 
 ## Conventions
 
@@ -182,6 +292,22 @@ extraCost = Math.ceil( (distancesAll / kmPerLiter) × (price − BASE_PRICE) )
 - Vuetify components auto-import ผ่าน `vite-plugin-vuetify` (ไม่ต้อง import เอง)
 - font: Noto Sans Thai โหลดจาก Google Fonts ใน `App.vue` และบังคับ `* { font-family: ... !important }`
 - รูปพื้นหลัง/โลโก้ hotlink จาก external URL (twimg, dmc.tv, dhammakaya.or.th)
+
+## การทดสอบ (ไม่มี test runner)
+
+ทดสอบด้วยการรัน dev server แล้วขับ component ผ่าน browser — แต่ **Vuetify `v-select`
+ไม่รับ click จาก automation** (overlay ค้าง/ไม่ propagate) วิธีที่ใช้ได้จริง:
+
+- **dev build** — เข้าถึง `setupState` ของ `<script setup>` ได้ ตั้งค่า ref แล้วเรียก method ตรง ๆ:
+  ไล่ component tree จาก `document.querySelector('#app').__vue_app__._instance`
+  หา instance ที่ `setupState` มี key `provinceSelect`
+  **ต้องหน่วง ~500ms หลังตั้งค่า ก่อนเรียก `handleSearch()`** ไม่งั้น Vuetify ยัง validate ไม่ผ่าน
+- **production build** — `setupState` ไม่ถูก expose ต้องอ่าน Pinia store แทน:
+  วน `Reflect.ownKeys(app.__vue_app__._context.provides)` หา object ที่มีทั้ง `.state` และ `._s`
+  แล้ว `pinia._s.get('diesel')`
+- ทดสอบ error path ด้วยการ patch `window.fetch` — **ต้องเก็บ `window.fetch.bind(window)` ไว้ก่อน
+  และคืนค่าให้ครบทุกครั้ง** ถ้า script พังกลางทางจะเหลือ fetch ที่ถูก patch ค้าง
+  ทำให้การทดสอบรอบถัดไปอ่านผลผิด (เจอมาแล้ว)
 
 ## Dead code / จุดที่ต้องระวังก่อนแก้
 
