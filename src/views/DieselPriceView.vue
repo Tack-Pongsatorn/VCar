@@ -1,5 +1,5 @@
 <template>
-   <v-parallax class="diesel-view" src="https://pbs.twimg.com/media/FQ5mie4VcAAmPEg?format=jpg&name=medium">
+   <v-parallax class="diesel-view" src="/bg-vstar.jpg">
       <v-container fluid fill-height class="pa-2 pa-sm-4">
          <v-row justify="center" class="mt-3">
             <!-- Search Filters Section -->
@@ -431,6 +431,13 @@ const formatNumberWithComma = (number) => {
    .diesel-view {
       background-attachment: scroll;
    }
+}
+
+/* ปกแนวตั้ง: v-parallax บังคับ object-fit: cover จึง crop บน-ล่าง
+   ยึดขอบบนไว้ให้เห็นชื่องาน + โลโก้
+   หมายเหตุ: .diesel-view เป็น root element เอง ต้องอยู่นอก :deep() ไม่งั้น selector ไม่ match */
+.diesel-view :deep(.v-img__img) {
+   object-position: top center;
 }
 
 .price-display {
