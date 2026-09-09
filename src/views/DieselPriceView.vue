@@ -48,10 +48,19 @@
                      </v-row>
                   </v-card-text>
 
-                  <!-- Error State -->
-                  <!-- <v-alert v-if="error && !loading" type="error" class="ma-4" dismissible>
-                     {{ error }}
-                  </v-alert> -->
+                  <!-- Error State: ดึงราคาน้ำมันไม่ได้ -->
+                  <v-alert v-if="!loading && !hasDieselPrice" type="error" variant="tonal" class="ma-4">
+                     <p class="mb-2">ไม่สามารถดึงราคาน้ำมันดีเซลได้ในขณะนี้</p>
+                     <p v-if="error" class="text-caption mb-2">({{ error }})</p>
+                     <v-btn size="small" color="error" variant="tonal" @click="diesel.fetchDieselPrices()">
+                        ลองใหม่
+                     </v-btn>
+                  </v-alert>
+
+                  <!-- Fallback notice: Cloud Function ส่งราคาสำรองมาแทนราคาสด -->
+                  <v-alert v-else-if="!loading && isFallback" type="warning" variant="tonal" class="ma-4">
+                     ขณะนี้เชื่อมต่อผู้ให้บริการราคาน้ำมันไม่ได้ ระบบใช้ราคาสำรองในการคำนวณ
+                  </v-alert>
 
                   <!-- Price Display -->
                   <!-- <v-card-text v-if="!loading" class="pa-8">
@@ -100,7 +109,7 @@
                                  formatNumberWithComma(currentDieselPrice?.price?.toFixed(2)) }} บาท/ลิตร
                            </p>
                            <p class="text-subtitle2 text-grey-darken-1">
-                              อัปเดตเมื่อ: {{ formatDate(lastUpdated) || "ณ วันที่ 26 มี.ค. 69 เวลา 05.00 น." }}
+                              {{ priceRemark || 'อัปเดตเมื่อ: ' + formatDate(lastUpdated) }}
                            </p>
                         </v-col>
                      </v-row>
@@ -129,10 +138,16 @@
                   <!-- Note Card -->
                   <v-card v-if="showPriceDisplay" color="warning" variant="tonal" class="ma-4 mt-6">
                      <v-card-text class="text-center pa-4">
-                        <p class="text-subtitle2 font-weight-bold mb-0 text-grey-darken-3">
-                           📌 ค่าน้ำมันที่เบิกเพิ่มได้จริง อ้างอิงจากราคาน้ำมันดีเซล ณ วันที่ 20 เมษายน 69 ตามประกาศ
-                           <a href="https://www.pttor.com/news/oil-price" target="_blank"
-                              class="text-decoration-underline font-weight-bold">ปตท.</a> เขต กทม. เป็นฐานในการคำนวณ
+                        <p class="text-subtitle2 font-weight-bold mb-2 text-grey-darken-3">
+                           📌 ค่าน้ำมันที่เบิกเพิ่มได้ คำนวณจากส่วนต่างของราคาน้ำมันดีเซลที่สูงกว่าราคาฐาน
+                           {{ BASE_PRICE }} บาท/ลิตร
+                        </p>
+                        <p class="text-caption mb-0 text-grey-darken-2">
+                           ราคาอ้างอิง: ไฮดีเซล S ราคาขายปลีกเขต กทม. ตามประกาศ
+                           <a href="https://oil-price.bangchak.co.th/BcpOilPrice1/th" target="_blank"
+                              rel="noopener" class="text-decoration-underline font-weight-bold">บางจาก</a>
+                           โดยระบบดึงราคาล่าสุดอัตโนมัติ ยอดที่เบิกได้จึงเปลี่ยนตามราคาน้ำมันในแต่ละวัน
+                           (ราคายังไม่รวมภาษีบำรุงท้องถิ่น กทม.)
                         </p>
                      </v-card-text>
                   </v-card>
@@ -152,21 +167,26 @@ import { computed, onMounted, ref, toRef, watch } from 'vue'
 
 const diesel = useDieselStore()
 
-// Hardcoded diesel price
-const HARDCODED_DIESEL_PRICE = 38.94
-
 // ใช้ toRef เพื่อเก็บ reactive reference ให้ยังติด track กับ store
 const prices = toRef(diesel, 'prices')
 const loading = toRef(diesel, 'loading')
 const error = toRef(diesel, 'error')
 const lastUpdated = toRef(diesel, 'lastUpdated')
-const storeCurrentDieselPrice = toRef(diesel, 'currentDieselPrice')
+const priceRemark = toRef(diesel, 'priceRemark')
+const isFallback = toRef(diesel, 'isFallback')
 
-// Override currentDieselPrice with hardcoded value
-const currentDieselPrice = computed(() => ({
-   ...storeCurrentDieselPrice.value,
-   price: HARDCODED_DIESEL_PRICE
-}))
+// ราคาดีเซลอ้างอิงจาก API โดยตรง (ไม่มีการ hardcode)
+const currentDieselPrice = toRef(diesel, 'currentDieselPrice')
+
+// มีราคาที่ใช้คำนวณได้จริงหรือไม่ (ใช้ตัดสินใจว่าจะแสดงผลลัพธ์หรือ error)
+const hasDieselPrice = computed(() => {
+   const price = currentDieselPrice.value?.price
+   return Number.isFinite(price) && price > 0
+})
+
+// ราคาฐาน (บาท/ลิตร) ส่วนที่เกินจากนี้คือส่วนที่เบิกเพิ่มได้
+// ใช้ร่วมกันทั้งในสูตร, ช่วงราคาของตาราง และข้อความ note card
+const BASE_PRICE = 33
 
 // Filter variables
 const filterForm = ref(null)
@@ -235,7 +255,7 @@ const filteredPrices = computed(() => {
 
 // Compute the fuel cost based on current selection
 const calculateFuelCostResult = computed(() => {
-   if (!showPriceDisplay.value || !vehicleTypeSelect.value || !foundDistance.value || !currentDieselPrice.value) {
+   if (!showPriceDisplay.value || !vehicleTypeSelect.value || !foundDistance.value || !hasDieselPrice.value) {
       return 0
    }
 
@@ -247,10 +267,10 @@ const calculateFuelCostResult = computed(() => {
    }
 })
 
-// Generate price range from 33 to 50 for the table
+// Generate price range from BASE_PRICE to 50 for the table
 const priceRangeData = computed(() => {
    const priceList = []
-   for (let price = 33; price <= 50; price++) {
+   for (let price = BASE_PRICE; price <= 50; price++) {
       priceList.push({
          price: price,
          extraCost: !showPriceDisplay.value || !vehicleTypeSelect.value || !foundDistance.value
@@ -361,8 +381,6 @@ function calculateExtraFuelCost(vehicleType, distanceKm, fuelPricePerLiter) {
       'รถบัสแอร์1 ชั้น': 4.2,
       'รถบัสแอร์2 ชั้น': 3.2,
    };
-
-   const BASE_PRICE = 33;
 
    const kmPerLiter = fuelRates[vehicleType];
    if (kmPerLiter === undefined) {

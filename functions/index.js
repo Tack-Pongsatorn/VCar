@@ -4,8 +4,9 @@ const https = require('https');
 
 const corsHandler = cors({ origin: true });
 
-// Fallback oil price when API fails
-const FALLBACK_PRICE = 38.94;
+// Fallback oil price when API fails (บาท/ลิตร ของ "ไฮดีเซล S")
+// ค่านี้ใช้เฉพาะกรณีที่เรียก Bangchak API ไม่ได้ ควรอัปเดตเป็นระยะ
+const FALLBACK_PRICE = 39.84;
 
 /**
  * Proxy function to fetch oil prices from Bangchak API

@@ -1,20 +1,43 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
+// ชื่อผลิตภัณฑ์ที่ใช้เป็นฐานคำนวณ (ตรงกับ OilName ที่ API ส่งมา)
+const DIESEL_PRODUCT_KEYWORD = 'ไฮดีเซล S'
+
 export const useDieselStore = defineStore('diesel', () => {
    const prices = ref([])
    const loading = ref(true)
    const error = ref(null)
-   const lastUpdated = ref(null)
+   const lastUpdated = ref(null)   // เวลาที่ fetch สำเร็จ (เวลาเครื่อง client)
+   const priceDate = ref(null)     // วันที่ราคามีผล จาก API (OilPriceDate เช่น "08/09/2569")
+   const priceRemark = ref(null)   // ข้อความ "ราคามีผล ณ วันที่ ..." จาก API (OilRemark2)
+   const isFallback = ref(false)   // true = ใช้ราคาสำรองจาก Cloud Function ไม่ใช่ราคาสด
 
    const currentDieselPrice = computed(() => {
-      const diesel = prices.value.find(p => p.product_th?.includes('ไฮดีเซล S'))
+      const diesel = prices.value.find(p => p.product_th?.includes(DIESEL_PRODUCT_KEYWORD))
       return diesel || null
    })
+
+   // Cloud Function จะส่ง object เดี่ยว { price, isFallback } มาแทน array เมื่อ upstream ล้มเหลว
+   function applyFallbackPrice(data) {
+      prices.value = [{
+         product_id: 0,
+         product_th: DIESEL_PRODUCT_KEYWORD,
+         price: Number(data.price),
+         diff_price: 0,
+         date_update: null
+      }]
+      isFallback.value = true
+      priceDate.value = null
+      priceRemark.value = null
+      lastUpdated.value = new Date()
+      console.warn('⚠️ ใช้ราคาสำรองจาก Cloud Function:', data.price)
+   }
 
    async function fetchDieselPrices() {
       loading.value = true
       error.value = null
+      isFallback.value = false
 
       try {
          // เพิ่ม delay เล็กน้อยเพื่อให้ loading state มีเวลาแสดง
@@ -34,33 +57,55 @@ export const useDieselStore = defineStore('diesel', () => {
          const data = await response.json()
          console.log('✅ API Response:', data)
 
-         if (Array.isArray(data) && data.length > 0) {
-            const apiData = data[0]
-            const oilListStr = apiData.OilList
-
-            if (oilListStr) {
-               try {
-                  const oilList = JSON.parse(oilListStr)
-                  // แปลงข้อมูลให้ตรงกับที่ใช้ใน component
-                  prices.value = oilList.map((oil, index) => ({
-                     product_id: index,
-                     product_th: oil.OilName,
-                     price: oil.PriceToday,
-                     diff_price: oil.PriceDifYesterday,
-                     date_update: apiData.OilPriceDate
-                  }))
-                  console.log('✅ Processed prices:', prices.value)
-                  lastUpdated.value = new Date()
-               } catch (parseErr) {
-                  throw new Error('ไม่สามารถแปลง JSON ข้อมูลราคา: ' + parseErr.message)
-               }
-            } else {
-               throw new Error('ไม่พบ OilList ในข้อมูล API')
+         // รูปแบบ fallback จาก Cloud Function (ไม่ใช่ array)
+         if (!Array.isArray(data)) {
+            if (data && Number.isFinite(Number(data.price))) {
+               applyFallbackPrice(data)
+               return
             }
-         } else {
+            throw new Error('รูปแบบข้อมูลจาก API ไม่ถูกต้อง')
+         }
+
+         if (data.length === 0) {
             throw new Error('API returned empty data')
          }
+
+         const apiData = data[0]
+         const oilListStr = apiData.OilList
+
+         if (!oilListStr) {
+            throw new Error('ไม่พบ OilList ในข้อมูล API')
+         }
+
+         let oilList
+         try {
+            oilList = JSON.parse(oilListStr)
+         } catch (parseErr) {
+            throw new Error('ไม่สามารถแปลง JSON ข้อมูลราคา: ' + parseErr.message)
+         }
+
+         // แปลงข้อมูลให้ตรงกับที่ใช้ใน component
+         prices.value = oilList.map((oil, index) => ({
+            product_id: index,
+            product_th: oil.OilName,
+            price: Number(oil.PriceToday),
+            diff_price: Number(oil.PriceDifYesterday),
+            date_update: apiData.OilPriceDate
+         }))
+
+         if (!currentDieselPrice.value) {
+            throw new Error(`ไม่พบราคา "${DIESEL_PRODUCT_KEYWORD}" ในข้อมูล API`)
+         }
+
+         priceDate.value = apiData.OilPriceDate || null
+         priceRemark.value = apiData.OilRemark2 || null
+         lastUpdated.value = new Date()
+         console.log('✅ Processed prices:', prices.value)
       } catch (err) {
+         // ล้างราคาเดิมทิ้ง เพื่อไม่ให้คำนวณด้วยข้อมูลที่เชื่อถือไม่ได้
+         prices.value = []
+         priceDate.value = null
+         priceRemark.value = null
          error.value = err instanceof Error ? err.message : 'ไม่สามารถดึงข้อมูลราคาดีเซล'
          console.error('Diesel price fetch error:', err)
       } finally {
@@ -73,6 +118,9 @@ export const useDieselStore = defineStore('diesel', () => {
       loading,
       error,
       lastUpdated,
+      priceDate,
+      priceRemark,
+      isFallback,
       currentDieselPrice,
       fetchDieselPrices
    }
