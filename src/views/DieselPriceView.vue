@@ -109,7 +109,7 @@
                                  formatNumberWithComma(currentDieselPrice?.price?.toFixed(2)) }} บาท/ลิตร
                            </p>
                            <p class="text-subtitle2 text-grey-darken-1">
-                              {{ priceRemark || 'อัปเดตเมื่อ: ' + formatDate(lastUpdated) }}
+                              เรียกดูเมื่อ {{ formatDate(viewedAt) }} น.
                            </p>
                         </v-col>
                      </v-row>
@@ -172,7 +172,6 @@ const prices = toRef(diesel, 'prices')
 const loading = toRef(diesel, 'loading')
 const error = toRef(diesel, 'error')
 const lastUpdated = toRef(diesel, 'lastUpdated')
-const priceRemark = toRef(diesel, 'priceRemark')
 const isFallback = toRef(diesel, 'isFallback')
 
 // ราคาดีเซลอ้างอิงจาก API โดยตรง (ไม่มีการ hardcode)
@@ -198,6 +197,7 @@ const provinces = ref([])
 const vehicleTypes = ref(['รถตู้', 'รถบัสพัดลม', 'รถบัสแอร์1 ชั้น', 'รถบัสแอร์2 ชั้น'])
 const showPriceDisplay = ref(false)
 const foundDistance = ref(null) // เก็บระยะทางที่ค้นหาได้
+const viewedAt = ref(null) // เวลาที่ผู้ใช้กดค้นหา — ใช้ประทับบนผลลัพธ์
 
 // จังหวัดที่ไม่ต้องเลือก อำเภอ
 const provinceWithoutDistrict = ref(['กทม.', 'นนทบุรี', 'ปทุมธานี', 'สมุทรปราการ'])
@@ -361,6 +361,7 @@ const handleSearch = async () => {
          foundDistance.value = null
       }
 
+      viewedAt.value = new Date()
       showPriceDisplay.value = true
 
       // Scroll to results section
