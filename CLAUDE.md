@@ -527,8 +527,10 @@ URL: **https://mbus-rate.web.app** (และ `mbus-rate.firebaseapp.com`)
   ชัยนาท/เนินขาม รถตู้ รอบ 5–6 = 6,753 / รอบ 21 อยู่ถึง 24 = 8,753 / ไป-กลับ 6 ม.ค. 2 กิจกรรม = 4,547
   (แตะ 9 ม.ค. → 4,047), เวียงแก่น บัสแอร์2 บังคับ รอบ 5–6 = 48,837, กทม. ช่อง "เขต / จุดออกรถ (129 จุด)"
 
-⚠️ **ซอร์สที่ deploy มาจาก worktree `claude/system-understanding-claude-md-1076c5` ตอน deploy ยังไม่ได้ commit**
-ต้อง commit/push ให้ตรงกับ production ไม่งั้นซ้ำรอยหัวข้อถัดไป
+✅ ซอร์สที่ deploy รอบ 4 **commit แล้ว** บน branch `claude/system-understanding-claude-md-1076c5`
+(`7e6c016` refactor สูตรน้ำมัน, `2fcd8a2` หน้าธรรมยาตรา, `bc65cd3` docs, `68de1f5` deploy cache) —
+⚠️ **ยังไม่ได้ push และยังไม่ได้ merge เข้า `main`** (branch นี้นำ `main` อยู่ 10+ commit รวมงาน 2026-09-09 ด้วย)
+ถ้าเครื่องนี้หายก่อน push จะซ้ำรอยหัวข้อถัดไป · push จากเครื่องนี้ต้องใช้ git ตัวที่ต่อ HTTPS ได้ (git ใน PATH ต่อ HTTPS ไม่ได้)
 
 ⚠️ **Firebase Hosting ส่ง `cache-control: max-age=3600` ทุกไฟล์รวม `index.html`** (`firebase.json` ไม่ได้ตั้ง `headers`)
 → คนที่เปิดหน้าไว้ภายใน 1 ชั่วโมงก่อน deploy จะยังเห็นเวอร์ชันเก่าจนกว่า cache หมดอายุหรือรีเฟรชแบบล้าง cache
