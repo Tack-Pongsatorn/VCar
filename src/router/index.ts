@@ -20,6 +20,12 @@ const router = createRouter({
          path: '/diesel-price',
          name: 'diesel-price',
          component: DieselPriceView
+      },
+      {
+         path: '/dhammayatra',
+         name: 'dhammayatra',
+         // lazy-load: แยกข้อมูลระยะทาง (~124 kB) ออกจาก bundle หลัก หน้าค่าน้ำมันเดิมจะได้ไม่ต้องโหลด
+         component: () => import("../views/DhammayatraView.vue")
       }
 
    ],
