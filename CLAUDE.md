@@ -529,8 +529,10 @@ URL: **https://mbus-rate.web.app** (และ `mbus-rate.firebaseapp.com`)
 
 ✅ ซอร์สที่ deploy รอบ 4 **commit แล้ว** บน branch `claude/system-understanding-claude-md-1076c5`
 (`7e6c016` refactor สูตรน้ำมัน, `2fcd8a2` หน้าธรรมยาตรา, `bc65cd3` docs, `68de1f5` deploy cache) —
-⚠️ **ยังไม่ได้ push และยังไม่ได้ merge เข้า `main`** (branch นี้นำ `main` อยู่ 10+ commit รวมงาน 2026-09-09 ด้วย)
-ถ้าเครื่องนี้หายก่อน push จะซ้ำรอยหัวข้อถัดไป · push จากเครื่องนี้ต้องใช้ git ตัวที่ต่อ HTTPS ได้ (git ใน PATH ต่อ HTTPS ไม่ได้)
+และ **push ขึ้น GitHub แล้ว** (branch เดียวกันบน `origin`) — ⚠️ **ยังไม่ได้ merge เข้า `main`**
+`origin/main` = `48ef9df` (มีงาน 2026-09-09/10 ครบแล้ว — ref `main` ในเครื่องเก่ากว่า อย่าเชื่อ ให้ `fetch` ก่อนดู)
+branch นี้นำ `origin/main` 6 commit ต่อกันตรง ๆ จึง fast-forward ได้
+push/fetch จากเครื่องนี้ต้องใช้ `/Library/Developer/CommandLineTools/usr/libexec/git-core/git` (git ใน PATH ต่อ HTTPS ไม่ได้)
 
 ⚠️ **Firebase Hosting ส่ง `cache-control: max-age=3600` ทุกไฟล์รวม `index.html`** (`firebase.json` ไม่ได้ตั้ง `headers`)
 → คนที่เปิดหน้าไว้ภายใน 1 ชั่วโมงก่อน deploy จะยังเห็นเวอร์ชันเก่าจนกว่า cache หมดอายุหรือรีเฟรชแบบล้าง cache
