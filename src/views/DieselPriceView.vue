@@ -162,6 +162,7 @@
 <script setup>
 import { useDieselStore } from '@/stores/diesel'
 import oilrate from '@/stores/oilrate'
+import { BASE_PRICE, VEHICLE_TYPES, calculateExtraFuelCost } from '@/utils/fuel'
 import provinceData from '@/stores/province'
 import { computed, onMounted, ref, toRef, watch } from 'vue'
 
@@ -183,9 +184,8 @@ const hasDieselPrice = computed(() => {
    return Number.isFinite(price) && price > 0
 })
 
-// ราคาฐาน (บาท/ลิตร) ส่วนที่เกินจากนี้คือส่วนที่เบิกเพิ่มได้
+// BASE_PRICE (ราคาฐาน) และสูตรค่าน้ำมันอยู่ที่ src/utils/fuel.js
 // ใช้ร่วมกันทั้งในสูตร, ช่วงราคาของตาราง และข้อความ note card
-const BASE_PRICE = 33
 
 // Filter variables
 const filterForm = ref(null)
@@ -194,7 +194,7 @@ const provinceSelect = ref(null)
 const districtSelect = ref(null)
 const vehicleTypeSelect = ref(null)
 const provinces = ref([])
-const vehicleTypes = ref(['รถตู้', 'รถบัสพัดลม', 'รถบัสแอร์1 ชั้น', 'รถบัสแอร์2 ชั้น'])
+const vehicleTypes = ref([...VEHICLE_TYPES])
 const showPriceDisplay = ref(false)
 const foundDistance = ref(null) // เก็บระยะทางที่ค้นหาได้
 const viewedAt = ref(null) // เวลาที่ผู้ใช้กดค้นหา — ใช้ประทับบนผลลัพธ์
@@ -372,30 +372,6 @@ const handleSearch = async () => {
       showPriceDisplay.value = false
       foundDistance.value = null
    }
-}
-
-function calculateExtraFuelCost(vehicleType, distanceKm, fuelPricePerLiter) {
-   const distancesAll = distanceKm * 2 // เนื่องจากข้อมูลระยะทางใน oilrate เป็นระยะทางไป-กลับ (ไปและกลับ) เราจึงคูณด้วย 2 เพื่อให้ได้ระยะทางรวม
-   const fuelRates = {
-      'รถตู้': 10,
-      'รถบัสพัดลม': 5.5,
-      'รถบัสแอร์1 ชั้น': 4.2,
-      'รถบัสแอร์2 ชั้น': 3.2,
-   };
-
-   const kmPerLiter = fuelRates[vehicleType];
-   if (kmPerLiter === undefined) {
-      throw new Error(`ประเภทรถไม่ถูกต้อง: ${vehicleType}`);
-   }
-
-   if (fuelPricePerLiter <= BASE_PRICE) {
-      return 0;
-   }
-
-   const litersUsed = distancesAll / kmPerLiter;
-   const extraCost = litersUsed * (fuelPricePerLiter - BASE_PRICE);
-
-   return Math.ceil(extraCost)
 }
 
 const formatDate = (date) => {
